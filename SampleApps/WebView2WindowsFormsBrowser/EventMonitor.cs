@@ -4,11 +4,13 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
+using Newtonsoft.Json;
 
 namespace WebView2WindowsFormsBrowser
 {
@@ -41,6 +43,7 @@ namespace WebView2WindowsFormsBrowser
         private void InitializeComponent()
         {
             this._clearButton = new System.Windows.Forms.Button();
+            this._saveButton = new System.Windows.Forms.Button();
             this._eventsListBox = new System.Windows.Forms.ListBox();
             this._eventDetailsListBox = new System.Windows.Forms.ListBox();
             this.SuspendLayout();
@@ -54,6 +57,16 @@ namespace WebView2WindowsFormsBrowser
             this._clearButton.Text = "Clear";
             this._clearButton.UseVisualStyleBackColor = true;
             this._clearButton.Click += ClearButton_Click;
+            // 
+            // clearButton
+            // 
+            this._saveButton.Location = new System.Drawing.Point(0, 0);
+            this._saveButton.Name = "saveButton";
+            this._saveButton.Size = new System.Drawing.Size(75, 23);
+            this._saveButton.TabIndex = 1;
+            this._saveButton.Text = "Save";
+            this._saveButton.UseVisualStyleBackColor = true;
+            this._saveButton.Click += SaveButton_Click;
             //
             // eventsListBox
             //
@@ -73,6 +86,7 @@ namespace WebView2WindowsFormsBrowser
             this._eventDetailsListBox.Text = "Event details";
 
             this.Controls.Add(this._clearButton);
+            this.Controls.Add(this._saveButton);
             this.Controls.Add(this._eventsListBox);
             this.Controls.Add(this._eventDetailsListBox);
 
@@ -94,6 +108,9 @@ namespace WebView2WindowsFormsBrowser
             this._clearButton.Location = new System.Drawing.Point(0, 0);
             this._clearButton.Size = new System.Drawing.Size(75, 23);
 
+            this._saveButton.Location = new System.Drawing.Point(77, 0);
+            this._saveButton.Size = new System.Drawing.Size(75, 23);
+
             this._eventsListBox.Location = new System.Drawing.Point(0, this._clearButton.Location.Y + this._clearButton.Size.Height);
             this._eventsListBox.Size = new System.Drawing.Size(this.ClientSize.Width / 4, this.ClientSize.Height - this._clearButton.Size.Height);
 
@@ -105,6 +122,24 @@ namespace WebView2WindowsFormsBrowser
         {
             _eventsListData.Clear();
             SetListBoxFromListData();
+        }
+
+        private void SaveButton_Click(object sender, System.EventArgs e)
+        {
+            SaveFileDialog saveFileDialog = new SaveFileDialog();
+
+            saveFileDialog.Filter = "json files (*.json)|*.json|All files (*.*)|*.*";
+            saveFileDialog.FilterIndex = 2;
+            saveFileDialog.RestoreDirectory = true;
+
+            if (saveFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                using (Stream stream = saveFileDialog.OpenFile())
+                using (StreamWriter textWriter = new StreamWriter(stream))
+                {
+                    textWriter.Write(JsonConvert.SerializeObject(this._eventsListData));
+                }
+            }
         }
 
         private void EventsListBox_SelectedIndexChanged(object sender, EventArgs e)
@@ -149,9 +184,9 @@ namespace WebView2WindowsFormsBrowser
                     var eventListDataItem = _eventsListData[index];
                     if (index < _eventsListBox.Items.Count)
                     {
-                        if ((string)_eventsListBox.Items[index] != eventListDataItem.Key)
+                        if ((string)_eventsListBox.Items[index] != eventListDataItem.EventName)
                         {
-                            _eventsListBox.Items[index] = eventListDataItem.Key;
+                            _eventsListBox.Items[index] = eventListDataItem.EventName;
                         }
                     }
                 }
@@ -160,7 +195,7 @@ namespace WebView2WindowsFormsBrowser
                 if (_eventsListBox.SelectedIndex >= 0)
                 {
                     var eventListDataItem = _eventsListData[_eventsListBox.SelectedIndex];
-                    foreach (var detailsDataItem in eventListDataItem.Value)
+                    foreach (var detailsDataItem in eventListDataItem.Details)
                     {
                         _eventDetailsListBox.Items.Add(detailsDataItem.Key + " = " + detailsDataItem.Value);
                     }
@@ -234,13 +269,15 @@ namespace WebView2WindowsFormsBrowser
             AddObjectPropertiesToDetails("CoreWebView2.Settings.", _coreWebView2.Settings, details);
             AddObjectPropertiesToDetails("WebView2.", _webview2, details);
 
-            _eventsListData.Add(new KeyValuePair<string, List<KeyValuePair<string, string>>>(eventName, details));
+            _eventsListData.Add(new EventEntry { EventName = eventName, Details = details });
 
             SetListBoxFromListData();
         }
 
         // Button to clear all the data from the _eventsListData and corresponding _eventsListBox
         private System.Windows.Forms.Button _clearButton;
+        private System.Windows.Forms.Button _saveButton;
+
 
         // The ListBox listing all the events.
         private System.Windows.Forms.ListBox _eventsListBox;
@@ -256,11 +293,19 @@ namespace WebView2WindowsFormsBrowser
         // The list of events is sorted by the time at which they were dispatched from earliest to latest.
         // The list of properties is not in any particular order except grouped by object for easier
         // reading.
-        private List<KeyValuePair<string, List<KeyValuePair<string, string>>>> _eventsListData =
-            new List<KeyValuePair<string, List<KeyValuePair<string, string>>>>();
+        private List<EventEntry> _eventsListData =
+            new List<EventEntry>();
 
         // Set to true when we update the UI from the data and don't want to accidentally interpret
         // those UI changes as things we need to then apply back to the data and get stuck in a loop.
         private bool _internalStateChange = false;
+
+
+        private class EventEntry
+        {
+            public string EventName { get; set; }
+            public List<KeyValuePair<string, string>> Details { get; set; }
+        }
+
     }
 }
